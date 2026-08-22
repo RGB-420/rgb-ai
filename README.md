@@ -54,3 +54,45 @@ Implement only Phase 1:
 - tests
 
 Do not implement RAG, agents, frontend, users or Qdrant yet.
+
+## Phase 1 benchmark usage
+
+Set runtime configuration through environment variables:
+
+```bash
+OLLAMA_BASE_URL=http://192.168.x.x:11434
+RGB_AI_RESULTS_PATH=results/benchmark_results.jsonl
+```
+
+List registered models:
+
+```bash
+python -m rgb_ai models list
+```
+
+Compare the registry with models reported by Ollama:
+
+```bash
+python -m rgb_ai models check-installed
+```
+
+List benchmark cases:
+
+```bash
+python -m rgb_ai benchmark list
+```
+
+Run one model against one case:
+
+```bash
+python -m rgb_ai benchmark run --model mdl_qwen3_06b --test CONTEXT_FACT_001
+```
+
+Run one model against a category:
+
+```bash
+python -m rgb_ai benchmark run --model mdl_qwen3_06b --category context_use
+```
+
+Results are appended as UTF-8 JSONL. Raw provider responses are stored, but the
+CLI prints only a compact summary.
