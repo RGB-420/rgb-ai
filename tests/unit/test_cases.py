@@ -9,6 +9,24 @@ from rgb_ai.cases import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+VALID_CATEGORIES = {
+    "instruction_following",
+    "structured_output",
+    "routing",
+    "classification",
+    "context_use",
+    "reasoning",
+    "coding",
+    "tool_selection",
+}
+VALID_VARIANTS = {"baseline", "instructions", "context", "few_shot"}
+SUPPORTED_EVALUATORS = {
+    "exact_match",
+    "contains_text",
+    "json_valid",
+    "json_field_equals",
+    "allowed_value",
+}
 
 
 def test_load_benchmark_cases_from_jsonl(tmp_path) -> None:
@@ -35,18 +53,45 @@ def test_load_benchmark_cases_from_jsonl(tmp_path) -> None:
 def test_load_checked_in_benchmark_case_fixture() -> None:
     cases = load_benchmark_cases(REPO_ROOT / "benchmarks" / "cases.jsonl")
 
-    assert [case.test_id for case in cases] == [
-        "INSTRUCT_EXACT_001",
-        "JSON_VALID_001",
-        "ALLOWED_VALUE_001",
-        "CONTEXT_FACT_001",
+    assert len(cases) == 32
+    assert len({case.test_id for case in cases}) == len(cases)
+    assert {case.category for case in cases} <= VALID_CATEGORIES
+    assert {case.variant for case in cases} <= VALID_VARIANTS
+    assert all(case.prompt for case in cases)
+    assert all(case.tags for case in cases)
+    assert all(case.difficulty for case in cases)
+
+    category_counts = _counts(case.category for case in cases)
+    assert category_counts == {
+        "instruction_following": 5,
+        "structured_output": 5,
+        "routing": 4,
+        "classification": 4,
+        "context_use": 4,
+        "reasoning": 4,
+        "coding": 3,
+        "tool_selection": 3,
+    }
+
+    for case in cases:
+        assert case.expected is not None
+        assert case.expected["type"] in SUPPORTED_EVALUATORS
+
+    route_family = [
+        case for case in cases if "variant_family:route_lib_001" in case.tags
     ]
-    assert [case.variant for case in cases] == [
+    assert [case.variant for case in route_family] == [
         "baseline",
         "instructions",
-        "baseline",
-        "context",
+        "few_shot",
     ]
+
+
+def _counts(values):
+    counts = {}
+    for value in values:
+        counts[value] = counts.get(value, 0) + 1
+    return counts
 
 
 def test_load_benchmark_cases_rejects_malformed_jsonl(tmp_path) -> None:

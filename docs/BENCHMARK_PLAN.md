@@ -38,6 +38,32 @@ malas instrucciones, a contexto insuficiente, a retrieval defectuoso o a
 infraestructura. La ejecución y el almacenamiento de resultados se implementarán
 en hitos posteriores.
 
+## 1.2 Suite inicial curada
+
+La primera suite versionada en `benchmarks/cases.jsonl` es deliberadamente
+pequeña y revisable. Su objetivo es diferenciar modelos locales en capacidades
+relevantes para `rgb-ai`, no cubrir todo el producto futuro.
+
+Categorías iniciales:
+
+- instruction_following;
+- structured_output;
+- routing;
+- classification;
+- context_use;
+- reasoning;
+- coding;
+- tool_selection.
+
+Estas categorías son capacidades de benchmark, no environments de producción.
+Por ejemplo, `routing` mide si un modelo puede elegir una etiqueta esperada,
+pero no implementa un router de agentes. `context_use` mide uso de contexto
+suministrado explícitamente por el caso, pero no implementa RAG.
+
+La suite empieza con unas pocas decenas de casos deterministas en castellano.
+Debe crecer solo cuando nuevos casos aporten señal clara sobre errores,
+capacidades o diferencias de coste entre modelos.
+
 
 # 2. Métricas técnicas globales
 
