@@ -1,0 +1,31 @@
+{
+  "models": [
+    {
+      "model_id": "mdl_qwen3_06b",
+      "provider": "ollama",
+      "provider_model": "qwen3:0.6b",
+      "role": "small_generalist_candidate",
+      "notes": "Initial small generalist candidate for Phase 1 benchmark infrastructure validation.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_qwen3_17b",
+      "provider": "ollama",
+      "provider_model": "qwen3:1.7b",
+      "role": "larger_generalist_candidate",
+      "notes": "Candidate for comparison against smaller generalist models.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_qwen25_coder_15b",
+      "provider": "ollama",
+      "provider_model": "qwen2.5-coder:1.5b",
+      "role": "coding_candidate",
+      "notes": "Candidate for future programming-oriented benchmarks.",
+      "enabled": true,
+      "benchmark_eligible": true
+    }
+  ]
+}

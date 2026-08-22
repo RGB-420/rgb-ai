@@ -17,6 +17,27 @@ Otro puede ser lento pero muy fiable utilizando RAG.
 
 Por tanto, cada modelo tendrá un perfil de capacidades y no una única nota.
 
+## 1.1 Modelo + contexto de ejecución
+
+Los benchmarks deben poder distinguir la capacidad intrínseca de un modelo de
+su rendimiento cuando recibe instrucciones, ejemplos o contexto explícito.
+
+Por eso, un caso de benchmark puede representar distintas variantes:
+
+- baseline: prompt directo sin ayuda adicional;
+- instructions: system prompt + prompt;
+- context: system prompt opcional + contexto suministrado explícitamente + prompt;
+- few_shot: system prompt opcional + ejemplos + contexto opcional + prompt;
+- future_rag: system prompt + contexto recuperado dinámicamente + prompt.
+
+En la Fase 1 el contexto es solamente entrada explícita del caso de benchmark.
+No se implementa retrieval, embeddings, Qdrant, reranking ni pipeline RAG.
+
+Esta separación permitirá medir más adelante si un fallo pertenece al modelo, a
+malas instrucciones, a contexto insuficiente, a retrieval defectuoso o a
+infraestructura. La ejecución y el almacenamiento de resultados se implementarán
+en hitos posteriores.
+
 
 # 2. Métricas técnicas globales
 
