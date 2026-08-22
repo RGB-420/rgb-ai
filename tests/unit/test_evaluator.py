@@ -17,6 +17,135 @@ def test_exact_match_passes_and_fails() -> None:
     assert evaluate_output("NO", expected).status == "failed"
 
 
+def test_semantic_punctuation_difference_is_format_only_failure() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "no consta",
+        "strip": True,
+        "semantic": {
+            "type": "normalized_match",
+            "value": "no consta",
+            "case_insensitive": True,
+            "punctuation_insensitive": True,
+            "whitespace_insensitive": True,
+        },
+    }
+
+    result = evaluate_output("No consta.", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.format_compliant is False
+    assert result.failure_type == "format_only"
+
+
+def test_semantic_capitalization_difference_is_format_only_failure() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "si",
+        "strip": True,
+        "semantic": {
+            "type": "normalized_match",
+            "value": "si",
+            "case_insensitive": True,
+        },
+    }
+
+    result = evaluate_output("SI", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.failure_type == "format_only"
+
+
+def test_semantic_accent_difference_is_explicitly_allowed() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "administracion",
+        "strip": True,
+        "semantic": {
+            "type": "normalized_match",
+            "value": "administracion",
+            "accent_insensitive": True,
+        },
+    }
+
+    result = evaluate_output("administración", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.failure_type == "format_only"
+
+
+def test_correct_fraction_inside_explanatory_text_is_task_correct() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "1/2",
+        "strip": True,
+        "semantic": {"type": "fraction", "value": "1/2"},
+    }
+
+    result = evaluate_output("La probabilidad es 1/2.", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.failure_type == "format_only"
+
+
+def test_correct_code_expression_inside_markdown_fence_is_task_correct() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "datos[0]",
+        "strip": True,
+        "semantic": {
+            "type": "code_expression",
+            "value": "datos[0]",
+            "allow_markdown_code_fence": True,
+            "whitespace_insensitive": True,
+        },
+    }
+
+    result = evaluate_output("```python\ndatos[0]\n```", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.failure_type == "format_only"
+
+
+def test_semantic_wrong_answer_is_wrong_answer_failure() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "1/2",
+        "strip": True,
+        "semantic": {"type": "fraction", "value": "1/2"},
+    }
+
+    result = evaluate_output("La probabilidad es 1/3.", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is False
+    assert result.failure_type == "wrong_answer"
+
+
+def test_strict_instruction_following_remains_strict() -> None:
+    expected = {
+        "type": "exact_match",
+        "value": "SI",
+        "strip": True,
+        "semantic": {
+            "type": "normalized_match",
+            "value": "SI",
+            "punctuation_insensitive": True,
+        },
+    }
+
+    result = evaluate_output("SI.", expected)
+
+    assert result.status == "failed"
+    assert result.task_correct is True
+    assert result.format_compliant is False
+
+
 def test_contains_text_passes_and_fails() -> None:
     expected = {"type": "contains_text", "value": "azul", "case_sensitive": False}
 

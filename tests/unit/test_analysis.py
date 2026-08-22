@@ -29,7 +29,11 @@ def _row(
     split=True,
     response_text="biblioteca",
     details=None,
+    task_correct=None,
+    failure_type=None,
 ):
+    if task_correct is None:
+        task_correct = True if status == "passed" else False if status == "failed" else None
     return {
         "test_id": test_id,
         "model_id": model_id,
@@ -56,6 +60,9 @@ def _row(
         "evaluation": {
             "status": status,
             "score": 1.0 if status == "passed" else 0.0,
+            "task_correct": task_correct,
+            "format_compliant": status == "passed",
+            "failure_type": failure_type,
             "details": details or {"expected": "biblioteca", "actual": response_text},
         },
         "error": error,
@@ -111,6 +118,9 @@ def test_overall_summary_multiple_models_and_runs() -> None:
     assert first.passed == 1
     assert first.failed == 1
     assert first.pass_rate == 0.5
+    assert first.task_correct == 1
+    assert first.task_incorrect == 1
+    assert first.task_accuracy == 0.5
     assert first.total_duration_ms == 3000.0
     assert first.average_duration_ms == 1500.0
     assert first.total_output_tokens == 50
@@ -159,6 +169,36 @@ def test_infrastructure_error_count() -> None:
     summary = summarize_by_run(rows)[0]
 
     assert summary.infrastructure_errors == 1
+
+
+def test_strict_vs_task_metrics_count_format_only_and_wrong_answers() -> None:
+    rows = [
+        _row(test_id="PASS", status="passed", task_correct=True),
+        _row(
+            test_id="FORMAT",
+            status="failed",
+            task_correct=True,
+            failure_type="format_only",
+        ),
+        _row(
+            test_id="WRONG",
+            status="failed",
+            task_correct=False,
+            failure_type="wrong_answer",
+        ),
+        _row(test_id="OPEN", status="not_evaluated", task_correct=None),
+    ]
+
+    summary = summarize_by_run(rows)[0]
+
+    assert summary.passed == 1
+    assert summary.failed == 2
+    assert summary.pass_rate == 0.25
+    assert summary.task_correct == 2
+    assert summary.task_incorrect == 1
+    assert summary.task_accuracy == 2 / 3
+    assert summary.format_only_failures == 1
+    assert summary.wrong_answer_failures == 1
 
 
 def test_failed_case_extraction_is_compact_data() -> None:

@@ -12,9 +12,13 @@ def _row(
     category="instruction_following",
     variant="baseline",
     status="passed",
+    task_correct=None,
+    failure_type=None,
     split=True,
     response_text="SI",
 ):
+    if task_correct is None:
+        task_correct = True if status == "passed" else False if status == "failed" else None
     return {
         "schema_version": 1,
         "provider_model": provider_model,
@@ -42,6 +46,9 @@ def _row(
         "evaluation": {
             "status": status,
             "score": 1.0 if status == "passed" else 0.0,
+            "task_correct": task_correct,
+            "format_compliant": status == "passed",
+            "failure_type": failure_type,
             "details": {"expected": "SI", "actual": response_text},
         },
         "error": None,
@@ -76,6 +83,8 @@ def test_generate_markdown_report_includes_multi_model_comparison() -> None:
     assert "results/qwen.jsonl" in markdown
     assert "gemma.jsonl" in markdown
     assert "No automatic production recommendation" in markdown
+    assert "Strict pass rate measures" in markdown
+    assert "Task accuracy measures" in markdown
 
 
 def test_generate_markdown_report_failed_cases_and_markdown_escaping() -> None:
@@ -83,6 +92,8 @@ def test_generate_markdown_report_failed_cases_and_markdown_escaping() -> None:
         [
             _row(
                 status="failed",
+                task_correct=True,
+                failure_type="format_only",
                 test_id="TOOL|BAD",
                 response_text="search_library | extra",
             )
@@ -93,6 +104,36 @@ def test_generate_markdown_report_failed_cases_and_markdown_escaping() -> None:
 
     assert "TOOL\\|BAD" in markdown
     assert "search_library \\| extra" in markdown
+    assert "format_only" in markdown
+
+
+def test_generate_markdown_report_shows_strict_and_task_metrics() -> None:
+    markdown = generate_markdown_report(
+        [
+            _row(test_id="PASS", status="passed", task_correct=True),
+            _row(
+                test_id="FORMAT",
+                status="failed",
+                task_correct=True,
+                failure_type="format_only",
+                response_text="SI.",
+            ),
+            _row(
+                test_id="WRONG",
+                status="failed",
+                task_correct=False,
+                failure_type="wrong_answer",
+                response_text="NO",
+            ),
+        ],
+        source_files=["results/qwen.jsonl"],
+        generated_at=datetime(2026, 8, 22, tzinfo=UTC),
+    )
+
+    assert "33.3%" in markdown
+    assert "66.7%" in markdown
+    assert "Format-only" in markdown
+    assert "Wrong answer" in markdown
 
 
 def test_generate_markdown_report_handles_missing_estimated_split() -> None:

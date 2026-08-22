@@ -39,6 +39,9 @@ def generate_markdown_report(
         "",
         "Raw JSONL files are the source of truth. Estimated thinking metrics are non-authoritative and use `character_ratio_v1` when available.",
         "",
+        "Strict pass rate measures whether the complete benchmark requirement was satisfied, including required output format.",
+        "Task accuracy measures whether the underlying task answer was correct according to deterministic semantic rules configured for that benchmark case.",
+        "",
     ]
 
     if not rows:
@@ -63,6 +66,9 @@ def generate_markdown_report(
                 "Pass",
                 "Fail",
                 "Pass rate",
+                "Task accuracy",
+                "Format-only",
+                "Wrong answer",
                 "Total duration",
                 "Avg time/test",
                 "Prompt tokens",
@@ -79,6 +85,9 @@ def generate_markdown_report(
                     str(summary.passed),
                     str(summary.failed),
                     _percent(summary.pass_rate),
+                    _percent(summary.task_accuracy),
+                    str(summary.format_only_failures),
+                    str(summary.wrong_answer_failures),
                     _ms(summary.total_duration_ms),
                     _ms(summary.average_duration_ms),
                     str(summary.total_prompt_tokens),
@@ -94,12 +103,25 @@ def generate_markdown_report(
     lines.extend(["", "## Overall Comparison", ""])
     lines.extend(
         _table(
-            ["Model", "Pass", "Pass rate", "Avg time/test", "Output tok/s", "Est. thinking"],
+            [
+                "Model",
+                "Strict pass",
+                "Strict pass rate",
+                "Task accuracy",
+                "Format-only",
+                "Wrong answer",
+                "Avg time/test",
+                "Output tok/s",
+                "Est. thinking",
+            ],
             [
                 [
                     summary.provider_model,
                     f"{summary.passed}/{summary.tests}",
                     _percent(summary.pass_rate),
+                    _percent(summary.task_accuracy),
+                    str(summary.format_only_failures),
+                    str(summary.wrong_answer_failures),
                     _ms(summary.average_duration_ms),
                     _number(summary.average_output_tokens_per_second),
                     _percent(summary.estimated_thinking_share),
@@ -174,12 +196,18 @@ def _category_table(rows: list[dict[str, Any]]) -> list[str]:
             [model]
             + [
                 _percent(category_summaries[column_key].pass_rate)
+                + " / "
+                + _percent(category_summaries[column_key].task_accuracy)
                 if column_key in category_summaries
                 else "n/a"
                 for column_key, _ in CATEGORY_COLUMNS
             ]
         )
-    return _table(["Model"] + [label for _, label in CATEGORY_COLUMNS], table_rows)
+    return [
+        "Cells show `strict pass rate / task accuracy`.",
+        "",
+        *_table(["Model"] + [label for _, label in CATEGORY_COLUMNS], table_rows),
+    ]
 
 
 def _variant_table(rows: list[dict[str, Any]]) -> list[str]:
@@ -194,12 +222,18 @@ def _variant_table(rows: list[dict[str, Any]]) -> list[str]:
             [model]
             + [
                 _percent(variant_summaries[variant].pass_rate)
+                + " / "
+                + _percent(variant_summaries[variant].task_accuracy)
                 if variant in variant_summaries
                 else "n/a"
                 for variant in variants
             ]
         )
-    return _table(["Model"] + variants, table_rows)
+    return [
+        "Cells show `strict pass rate / task accuracy`.",
+        "",
+        *_table(["Model"] + variants, table_rows),
+    ]
 
 
 def _failed_case_sections(rows: list[dict[str, Any]]) -> list[str]:
@@ -213,12 +247,20 @@ def _failed_case_sections(rows: list[dict[str, Any]]) -> list[str]:
             continue
         lines.extend(
             _table(
-                ["Test ID", "Category", "Variant", "Expected", "Actual response"],
+                [
+                    "Test ID",
+                    "Category",
+                    "Variant",
+                    "Failure type",
+                    "Expected",
+                    "Actual response",
+                ],
                 [
                     [
                         failure.test_id,
                         failure.category,
                         failure.variant,
+                        failure.evaluation_details.get("failure_type", ""),
                         str(failure.expected),
                         _compact(failure.response_text),
                     ]

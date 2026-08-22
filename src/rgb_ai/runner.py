@@ -145,6 +145,9 @@ def _build_result(
         evaluation={
             "status": evaluation.status,
             "score": evaluation.score,
+            "task_correct": evaluation.task_correct,
+            "format_compliant": evaluation.format_compliant,
+            "failure_type": evaluation.failure_type,
             "details": evaluation.details,
         },
         error=asdict(error) if error is not None else None,
@@ -153,10 +156,13 @@ def _build_result(
 
 def _evaluation_error(error_type: str, message: str) -> EvaluationResult:
     return EvaluationResult(
-        status="evaluation_error",
+        status="not_evaluated",
         passed=None,
         score=None,
         original_output="",
+        task_correct=None,
+        format_compliant=None,
+        failure_type=None,
         details={"error_type": error_type, "message": message},
     )
 

@@ -334,7 +334,7 @@ def test_cli_benchmark_run_all_tests_continues_after_recoverable_execution_error
     assert stored[2]["test_id"] == "CONTEXT_FACT_001"
     assert "Infrastructure errors: 1" in output
     assert "[02/03] INSTRUCT_EXACT_002" in output
-    assert "EVALUATION_ERROR" in output
+    assert "NOT_EVALUATED" in output
 
 
 def test_cli_benchmark_run_all_tests_stops_on_result_storage_failure(
@@ -636,6 +636,53 @@ def test_cli_results_report_returns_nonzero_for_malformed_result_file(
     assert not output_file.exists()
 
 
+def test_cli_results_reevaluate_does_not_call_ollama_and_preserves_source(
+    monkeypatch,
+    tmp_path,
+    capsys,
+) -> None:
+    registry, cases, _ = _configure_paths(monkeypatch, tmp_path)
+    source = tmp_path / "source.jsonl"
+    output_file = tmp_path / "derived.jsonl"
+    source_row = {
+        "schema_version": 1,
+        "result_id": "res_1",
+        "run_id": "run_1",
+        "test_id": "INSTRUCT_EXACT_001",
+        "response_text": "SI",
+        "raw_provider_response": {"response": "SI"},
+        "metrics": {"total_duration_ms": 100.0},
+        "evaluation": {"status": "failed", "score": 0.0, "details": {}},
+        "error": None,
+    }
+    original = json.dumps(source_row) + "\n"
+    source.write_text(original, encoding="utf-8")
+
+    class ForbiddenOllamaClient:
+        def __init__(self, *args, **kwargs) -> None:
+            raise AssertionError("reevaluation must not call Ollama")
+
+    monkeypatch.setattr(cli, "OllamaClient", ForbiddenOllamaClient)
+
+    exit_code = cli.main(
+        [
+            "results",
+            "reevaluate",
+            "--file",
+            str(source),
+            "--output",
+            str(output_file),
+        ]
+    )
+
+    assert exit_code == 0
+    assert source.read_text(encoding="utf-8") == original
+    derived = [json.loads(line) for line in output_file.read_text(encoding="utf-8").splitlines()]
+    assert derived[0]["raw_provider_response"] == {"response": "SI"}
+    assert derived[0]["metrics"]["total_duration_ms"] == 100.0
+    assert "Re-evaluated results: 1" in capsys.readouterr().out
+
+
 def test_cli_returns_nonzero_for_unknown_model(monkeypatch, tmp_path, capsys) -> None:
     _configure_paths(monkeypatch, tmp_path)
 
@@ -677,4 +724,4 @@ def test_cli_returns_nonzero_for_ollama_infrastructure_error(
     stored = [json.loads(line) for line in results.read_text(encoding="utf-8").splitlines()]
     assert exit_code == 3
     assert stored[0]["error"]["type"] == "OllamaConnectionError"
-    assert "RESULT: EVALUATION_ERROR" in capsys.readouterr().out
+    assert "RESULT: NOT_EVALUATED" in capsys.readouterr().out

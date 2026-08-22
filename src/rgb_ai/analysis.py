@@ -22,6 +22,11 @@ class AggregateSummary:
     not_evaluated: int
     infrastructure_errors: int
     pass_rate: float | None
+    task_correct: int
+    task_incorrect: int
+    task_accuracy: float | None
+    format_only_failures: int
+    wrong_answer_failures: int
     total_duration_ms: float
     average_duration_ms: float | None
     total_prompt_tokens: int
@@ -102,6 +107,9 @@ def failed_cases(results: list[dict[str, Any]]) -> list[FailedCase]:
         if evaluation.get("status") != "failed":
             continue
         details = _dict_value(evaluation.get("details"))
+        failure_type = evaluation.get("failure_type")
+        if failure_type in {"format_only", "wrong_answer"}:
+            details = {**details, "failure_type": failure_type}
         failures.append(
             FailedCase(
                 test_id=str(row.get("test_id", "")),
@@ -138,6 +146,11 @@ def _summarize_rows(key: str, rows: list[dict[str, Any]]) -> AggregateSummary:
     failed = sum(1 for row in rows if _status(row) == "failed")
     not_evaluated = sum(1 for row in rows if _status(row) == "not_evaluated")
     infrastructure_errors = sum(1 for row in rows if row.get("error") is not None)
+    task_correct = sum(1 for row in rows if _task_correct(row) is True)
+    task_incorrect = sum(1 for row in rows if _task_correct(row) is False)
+    format_only_failures = sum(1 for row in rows if _failure_type(row) == "format_only")
+    wrong_answer_failures = sum(1 for row in rows if _failure_type(row) == "wrong_answer")
+    task_total = task_correct + task_incorrect
     total_duration_ms = sum(_float_metric(row, "total_duration_ms") for row in rows)
     total_prompt_tokens = sum(_int_metric(row, "prompt_tokens") for row in rows)
     total_output_tokens = sum(_int_metric(row, "output_tokens") for row in rows)
@@ -182,6 +195,11 @@ def _summarize_rows(key: str, rows: list[dict[str, Any]]) -> AggregateSummary:
         not_evaluated=not_evaluated,
         infrastructure_errors=infrastructure_errors,
         pass_rate=passed / tests if tests else None,
+        task_correct=task_correct,
+        task_incorrect=task_incorrect,
+        task_accuracy=task_correct / task_total if task_total else None,
+        format_only_failures=format_only_failures,
+        wrong_answer_failures=wrong_answer_failures,
         total_duration_ms=total_duration_ms,
         average_duration_ms=total_duration_ms / tests if tests else None,
         total_prompt_tokens=total_prompt_tokens,
@@ -200,6 +218,31 @@ def _status(row: dict[str, Any]) -> str | None:
     evaluation = _dict_value(row.get("evaluation"))
     status = evaluation.get("status")
     return status if isinstance(status, str) else None
+
+
+def _task_correct(row: dict[str, Any]) -> bool | None:
+    if row.get("error") is not None:
+        return None
+    evaluation = _dict_value(row.get("evaluation"))
+    task_correct = evaluation.get("task_correct")
+    if isinstance(task_correct, bool):
+        return task_correct
+    status = _status(row)
+    if status == "passed":
+        return True
+    if status == "failed":
+        return False
+    return None
+
+
+def _failure_type(row: dict[str, Any]) -> str | None:
+    evaluation = _dict_value(row.get("evaluation"))
+    failure_type = evaluation.get("failure_type")
+    if failure_type in {"format_only", "wrong_answer"}:
+        return failure_type
+    if _status(row) == "failed":
+        return "wrong_answer"
+    return None
 
 
 def _dict_value(value: Any) -> dict[str, Any]:

@@ -22,6 +22,7 @@ from rgb_ai.models import (
 )
 from rgb_ai.ollama import OllamaClient, OllamaError
 from rgb_ai.report import generate_markdown_report, write_markdown_report
+from rgb_ai.reevaluate import ReEvaluationError, reevaluate_results
 from rgb_ai.results import JsonlResultStore, ResultStorageError
 from rgb_ai.runner import ModelNotRunnableError, new_run_id, run_benchmark_case
 
@@ -33,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return args.func(args)
-    except ResultAnalysisError as exc:
+    except (ResultAnalysisError, ReEvaluationError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     except ResultStorageError as exc:
@@ -83,6 +84,10 @@ def build_parser() -> argparse.ArgumentParser:
     _add_result_file_args(report_parser)
     report_parser.add_argument("--output", required=True)
     report_parser.set_defaults(func=_results_report)
+    reevaluate_parser = results_subparsers.add_parser("reevaluate")
+    reevaluate_parser.add_argument("--file", required=True)
+    reevaluate_parser.add_argument("--output", required=True)
+    reevaluate_parser.set_defaults(func=_results_reevaluate)
 
     return parser
 
@@ -319,6 +324,21 @@ def _results_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _results_reevaluate(args: argparse.Namespace) -> int:
+    config = load_config()
+    cases = load_benchmark_cases(config.benchmark_cases_path)
+    rows = load_result_files([args.file])
+    reevaluated = reevaluate_results(
+        rows,
+        cases,
+        source_file=args.file,
+        output_path=args.output,
+    )
+    print(f"Re-evaluated results: {len(reevaluated)}")
+    print(f"Wrote derived results: {args.output}")
+    return 0
+
+
 def _find_model(
     registry: list[ModelRegistryEntry],
     model_id: str,
@@ -425,6 +445,11 @@ def _print_overall_summary(summary) -> None:
     print(f"Not evaluated: {summary.not_evaluated}")
     print(f"Infrastructure errors: {summary.infrastructure_errors}")
     print(f"Pass rate: {_percent(summary.pass_rate)}")
+    print(f"Task correct: {summary.task_correct}")
+    print(f"Task incorrect: {summary.task_incorrect}")
+    print(f"Task accuracy: {_percent(summary.task_accuracy)}")
+    print(f"Format-only failures: {summary.format_only_failures}")
+    print(f"Wrong-answer failures: {summary.wrong_answer_failures}")
     print(f"Total duration: {summary.total_duration_ms:.2f} ms")
     print(f"Average duration/test: {_number(summary.average_duration_ms)} ms")
     print(f"Total prompt tokens: {summary.total_prompt_tokens}")
@@ -444,18 +469,20 @@ def _print_overall_summary(summary) -> None:
 
 def _print_group_table(summaries) -> None:
     print(
-        f"{'GROUP':<24} {'PASS':>8} {'RATE':>8} {'AVG_MS':>10} "
-        f"{'AVG_OUT':>9} {'OUT_TPS':>9} {'EST_THINK':>10}"
+        f"{'GROUP':<24} {'PASS':>8} {'STRICT':>8} {'TASK':>8} {'FMT':>5} "
+        f"{'WRONG':>6} {'AVG_MS':>10} {'AVG_OUT':>9} {'OUT_TPS':>9}"
     )
     for summary in summaries:
         print(
             f"{summary.key:<24} "
             f"{summary.passed}/{summary.tests:>5} "
             f"{_percent(summary.pass_rate):>8} "
+            f"{_percent(summary.task_accuracy):>8} "
+            f"{summary.format_only_failures:>5} "
+            f"{summary.wrong_answer_failures:>6} "
             f"{_number(summary.average_duration_ms):>10} "
             f"{_number(summary.average_output_tokens):>9} "
-            f"{_number(summary.average_output_tokens_per_second):>9} "
-            f"{_percent(summary.estimated_thinking_share):>10}"
+            f"{_number(summary.average_output_tokens_per_second):>9}"
         )
 
 

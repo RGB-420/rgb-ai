@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
+import unicodedata
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any, Literal
 
 
@@ -18,6 +21,9 @@ class EvaluationResult:
     passed: bool | None
     score: float | None
     original_output: str
+    task_correct: bool | None
+    format_compliant: bool | None
+    failure_type: Literal["format_only", "wrong_answer"] | None
     details: dict[str, Any]
 
 
@@ -31,6 +37,9 @@ def evaluate_output(
             passed=None,
             score=None,
             original_output=output,
+            task_correct=None,
+            format_compliant=None,
+            failure_type=None,
             details={"reason": "No evaluator configured"},
         )
 
@@ -53,6 +62,9 @@ def evaluate_output(
             passed=None,
             score=None,
             original_output=output,
+            task_correct=None,
+            format_compliant=None,
+            failure_type=None,
             details={"error": str(exc)},
         )
 
@@ -68,6 +80,7 @@ def _exact_match(output: str, expected: dict[str, Any]) -> EvaluationResult:
             "expected": expected_value,
             "actual": actual,
         },
+        expected,
     )
 
 
@@ -84,6 +97,7 @@ def _contains_text(output: str, expected: dict[str, Any]) -> EvaluationResult:
             "expected_text": expected_value,
             "case_sensitive": case_sensitive,
         },
+        expected,
     )
 
 
@@ -113,6 +127,7 @@ def _json_field_equals(output: str, expected: dict[str, Any]) -> EvaluationResul
             "expected": expected_value,
             "actual": actual,
         },
+        expected,
     )
 
 
@@ -141,6 +156,7 @@ def _allowed_value(output: str, expected: dict[str, Any]) -> EvaluationResult:
             "actual": actual,
             "field": field,
         },
+        expected,
     )
 
 
@@ -167,14 +183,160 @@ def _pass_fail(
     original_output: str,
     passed: bool,
     details: dict[str, Any],
+    expected: dict[str, Any] | None = None,
 ) -> EvaluationResult:
+    task_correct, semantic_details = _task_correctness(
+        original_output,
+        strict_passed=passed,
+        expected=expected,
+    )
+    failure_type = None
+    if not passed:
+        failure_type = "format_only" if task_correct else "wrong_answer"
+
     return EvaluationResult(
         status="passed" if passed else "failed",
         passed=passed,
         score=1.0 if passed else 0.0,
         original_output=original_output,
-        details=details,
+        task_correct=task_correct,
+        format_compliant=passed,
+        failure_type=failure_type,
+        details={**details, **semantic_details},
     )
+
+
+def _task_correctness(
+    output: str,
+    *,
+    strict_passed: bool,
+    expected: dict[str, Any] | None,
+) -> tuple[bool, dict[str, Any]]:
+    if strict_passed:
+        return True, {}
+    if expected is None:
+        return False, {}
+
+    semantic = expected.get("semantic")
+    if semantic is None:
+        return False, {}
+    if not isinstance(semantic, dict):
+        raise EvaluatorConfigError("semantic evaluator config must be an object")
+
+    semantic_type = _required_str(semantic, "type")
+    if semantic_type == "normalized_match":
+        matched = _semantic_normalized_match(output, semantic)
+    elif semantic_type == "contains_text":
+        matched = _semantic_contains_text(output, semantic)
+    elif semantic_type == "fraction":
+        matched = _semantic_fraction(output, semantic)
+    elif semantic_type == "code_expression":
+        matched = _semantic_code_expression(output, semantic)
+    elif semantic_type == "allowed_value":
+        matched = _semantic_allowed_value(output, semantic)
+    else:
+        raise EvaluatorConfigError(f"Unknown semantic evaluator type: {semantic_type}")
+
+    return matched, {"semantic": {"type": semantic_type, "matched": matched}}
+
+
+def _semantic_normalized_match(output: str, semantic: dict[str, Any]) -> bool:
+    expected_value = _required_str(semantic, "value")
+    return _normalize_text(output, semantic) == _normalize_text(expected_value, semantic)
+
+
+def _semantic_contains_text(output: str, semantic: dict[str, Any]) -> bool:
+    expected_value = _required_str(semantic, "value")
+    return _normalize_text(expected_value, semantic) in _normalize_text(output, semantic)
+
+
+def _semantic_fraction(output: str, semantic: dict[str, Any]) -> bool:
+    expected_value = _required_str(semantic, "value")
+    expected_fraction = _parse_fraction(expected_value)
+    if expected_fraction is None:
+        raise EvaluatorConfigError("fraction semantic value must be a simple fraction")
+    return expected_fraction in _fractions_in_text(output)
+
+
+def _semantic_code_expression(output: str, semantic: dict[str, Any]) -> bool:
+    expected_value = _required_str(semantic, "value")
+    candidates = [output]
+    if _optional_bool(semantic, "allow_markdown_code_fence", default=False):
+        candidates.extend(_markdown_code_blocks(output))
+
+    expected_normalized = _normalize_code(expected_value, semantic)
+    for candidate in candidates:
+        normalized_candidate = _normalize_code(candidate, semantic)
+        if normalized_candidate == expected_normalized:
+            return True
+        for line in candidate.splitlines():
+            if _normalize_code(line, semantic) == expected_normalized:
+                return True
+    return False
+
+
+def _semantic_allowed_value(output: str, semantic: dict[str, Any]) -> bool:
+    allowed_values = semantic.get("allowed_values")
+    if not isinstance(allowed_values, list) or not allowed_values:
+        raise EvaluatorConfigError("allowed_value semantic requires non-empty allowed_values list")
+    if any(not isinstance(value, str) for value in allowed_values):
+        raise EvaluatorConfigError("allowed_value semantic values must be strings")
+
+    actual = _normalize_text(output, semantic)
+    return any(actual == _normalize_text(value, semantic) for value in allowed_values)
+
+
+def _normalize_text(text: str, config: dict[str, Any]) -> str:
+    normalized = text.strip() if _optional_bool(config, "strip", default=True) else text
+    if _optional_bool(config, "whitespace_insensitive", default=False):
+        normalized = " ".join(normalized.split())
+    if _optional_bool(config, "case_insensitive", default=False):
+        normalized = normalized.casefold()
+    if _optional_bool(config, "accent_insensitive", default=False):
+        normalized = "".join(
+            char
+            for char in unicodedata.normalize("NFKD", normalized)
+            if not unicodedata.combining(char)
+        )
+    if _optional_bool(config, "punctuation_insensitive", default=False):
+        normalized = "".join(
+            char for char in normalized if not unicodedata.category(char).startswith("P")
+        )
+    return normalized
+
+
+def _normalize_code(text: str, config: dict[str, Any]) -> str:
+    normalized = text.strip()
+    if _optional_bool(config, "whitespace_insensitive", default=False):
+        normalized = re.sub(r"\s+", "", normalized)
+    return normalized
+
+
+def _parse_fraction(text: str) -> Fraction | None:
+    match = re.fullmatch(r"\s*(-?\d+)\s*/\s*(-?\d+)\s*", text)
+    if match is None:
+        return None
+    try:
+        return Fraction(int(match.group(1)), int(match.group(2)))
+    except ZeroDivisionError:
+        return None
+
+
+def _fractions_in_text(text: str) -> set[Fraction]:
+    fractions: set[Fraction] = set()
+    for match in re.finditer(r"(?<![\w/])(-?\d+)\s*/\s*(-?\d+)(?![\w/])", text):
+        try:
+            fractions.add(Fraction(int(match.group(1)), int(match.group(2))))
+        except ZeroDivisionError:
+            continue
+    return fractions
+
+
+def _markdown_code_blocks(text: str) -> list[str]:
+    return [
+        match.group(1).strip()
+        for match in re.finditer(r"```(?:[^\n`]*)\n?(.*?)```", text, flags=re.DOTALL)
+    ]
 
 
 def _maybe_strip(output: str, expected: dict[str, Any]) -> str:

@@ -64,6 +64,18 @@ class JsonlResultStore:
             ) from exc
 
 
+def write_jsonl_rows(path: str | Path, rows: list[dict[str, Any]]) -> None:
+    output_path = Path(path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with output_path.open("w", encoding="utf-8") as file:
+            for row in rows:
+                json.dump(row, file, ensure_ascii=False, separators=(",", ":"))
+                file.write("\n")
+    except OSError as exc:
+        raise ResultStorageError(f"Unable to write benchmark results to {output_path}") from exc
+
+
 def load_jsonl_results(path: str | Path) -> list[dict[str, Any]]:
     results_path = Path(path)
     return [

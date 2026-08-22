@@ -157,7 +157,7 @@ def test_run_benchmark_case_records_ollama_infrastructure_failure(tmp_path) -> N
         result_store=_store(tmp_path),
     )
 
-    assert result.evaluation["status"] == "evaluation_error"
+    assert result.evaluation["status"] == "not_evaluated"
     assert result.error == {
         "type": "OllamaConnectionError",
         "message": "network down",
