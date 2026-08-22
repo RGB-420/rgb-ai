@@ -62,7 +62,40 @@ def test_load_checked_in_model_registry_fixture() -> None:
     assert [model.model_id for model in models] == [
         "mdl_qwen3_06b",
         "mdl_qwen3_17b",
+        "mdl_llama32_1b",
+        "mdl_gemma3_1b",
+        "mdl_qwen25_15b",
         "mdl_qwen25_coder_15b",
+        "mdl_deepseek_r1_15b",
+        "mdl_phi35_38b",
+        "mdl_granite4_350m_h",
+        "mdl_embeddinggemma_latest",
+    ]
+    assert [model.provider_model for model in models] == [
+        "qwen3:0.6b",
+        "qwen3:1.7b",
+        "llama3.2:1b",
+        "gemma3:1b",
+        "qwen2.5:1.5b",
+        "qwen2.5-coder:1.5b",
+        "deepseek-r1:1.5b",
+        "phi3.5:3.8b",
+        "granite4:350m-h",
+        "embeddinggemma:latest",
+    ]
+    assert [model.model_id for model in models if model.benchmark_eligible] == [
+        "mdl_qwen3_06b",
+        "mdl_qwen3_17b",
+        "mdl_llama32_1b",
+        "mdl_gemma3_1b",
+        "mdl_qwen25_15b",
+        "mdl_qwen25_coder_15b",
+        "mdl_deepseek_r1_15b",
+        "mdl_phi35_38b",
+        "mdl_granite4_350m_h",
+    ]
+    assert [model.model_id for model in models if not model.benchmark_eligible] == [
+        "mdl_embeddinggemma_latest"
     ]
 
 

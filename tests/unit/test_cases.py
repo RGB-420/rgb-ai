@@ -87,6 +87,19 @@ def test_load_checked_in_benchmark_case_fixture() -> None:
     ]
 
 
+def test_load_checked_in_benchmark_case_fixture_preserves_utf8_text() -> None:
+    cases = load_benchmark_cases(REPO_ROOT / "benchmarks" / "cases.jsonl")
+    direct_context = next(case for case in cases if case.test_id == "CTX_DIRECT_001")
+    philosophy = next(case for case in cases if case.test_id == "CLASS_DOC_PHIL_001")
+
+    assert "¿Qué día tendrá la revisión final" in direct_context.prompt
+    assert "Nébula Azul" in direct_context.prompt
+    assert "Nébula Azul" in direct_context.context[0].text
+    assert "revisión" in direct_context.context[0].text
+    assert "Terrassa" in direct_context.context[0].text
+    assert "filosofía" in philosophy.prompt
+
+
 def _counts(values):
     counts = {}
     for value in values:

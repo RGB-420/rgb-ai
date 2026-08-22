@@ -5,7 +5,7 @@
       "provider": "ollama",
       "provider_model": "qwen3:0.6b",
       "role": "small_generalist_candidate",
-      "notes": "Initial small generalist candidate for Phase 1 benchmark infrastructure validation.",
+      "notes": "Hypothesis: smallest generalist candidate for fast benchmark and routing-style tasks.",
       "enabled": true,
       "benchmark_eligible": true
     },
@@ -14,7 +14,34 @@
       "provider": "ollama",
       "provider_model": "qwen3:1.7b",
       "role": "larger_generalist_candidate",
-      "notes": "Candidate for comparison against smaller generalist models.",
+      "notes": "Hypothesis: larger Qwen generalist candidate for comparison against qwen3:0.6b.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_llama32_1b",
+      "provider": "ollama",
+      "provider_model": "llama3.2:1b",
+      "role": "generalist_candidate",
+      "notes": "Hypothesis: compact generalist candidate for Spanish instruction and routing benchmarks.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_gemma3_1b",
+      "provider": "ollama",
+      "provider_model": "gemma3:1b",
+      "role": "generalist_candidate",
+      "notes": "Hypothesis: compact generalist candidate for comparison against Qwen and Llama small models.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_qwen25_15b",
+      "provider": "ollama",
+      "provider_model": "qwen2.5:1.5b",
+      "role": "generalist_candidate",
+      "notes": "Hypothesis: older Qwen generalist candidate for baseline comparison.",
       "enabled": true,
       "benchmark_eligible": true
     },
@@ -23,9 +50,45 @@
       "provider": "ollama",
       "provider_model": "qwen2.5-coder:1.5b",
       "role": "coding_candidate",
-      "notes": "Candidate for future programming-oriented benchmarks.",
+      "notes": "Hypothesis: coding-specialized candidate for lightweight Python/code-format benchmarks.",
       "enabled": true,
       "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_deepseek_r1_15b",
+      "provider": "ollama",
+      "provider_model": "deepseek-r1:1.5b",
+      "role": "reasoning_candidate",
+      "notes": "Hypothesis: reasoning-oriented candidate for deterministic logic and arithmetic benchmarks.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_phi35_38b",
+      "provider": "ollama",
+      "provider_model": "phi3.5:3.8b",
+      "role": "larger_generalist_candidate",
+      "notes": "Hypothesis: larger generalist candidate for quality/latency trade-off comparison.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_granite4_350m_h",
+      "provider": "ollama",
+      "provider_model": "granite4:350m-h",
+      "role": "tool_routing_candidate",
+      "notes": "Hypothesis: very small candidate for routing and tool-selection style benchmarks.",
+      "enabled": true,
+      "benchmark_eligible": true
+    },
+    {
+      "model_id": "mdl_embeddinggemma_latest",
+      "provider": "ollama",
+      "provider_model": "embeddinggemma:latest",
+      "role": "embedding_candidate",
+      "notes": "Embedding model candidate for future retrieval/embedding benchmarks; excluded from current generative benchmark runner.",
+      "enabled": true,
+      "benchmark_eligible": false
     }
   ]
 }

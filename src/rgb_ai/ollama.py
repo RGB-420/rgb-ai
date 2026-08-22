@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -103,7 +104,12 @@ class OllamaClient:
         if options is not None:
             payload["options"] = options
 
-        data = self._request_json("POST", "/api/generate", json=payload)
+        data = self._request_json(
+            "POST",
+            "/api/generate",
+            content=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
         return parse_generate_response(data)
 
     def list_models(self) -> list[OllamaModel]:

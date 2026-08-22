@@ -16,6 +16,7 @@ from rgb_ai.results import (
     JsonlResultStore,
     ResultStorageError,
     SCHEMA_VERSION,
+    estimate_output_token_split,
 )
 
 
@@ -133,8 +134,14 @@ def _build_result(
         examples=[asdict(item) for item in case.examples],
         generation_options=dict(case.generation_options),
         response_text=response.response_text if response is not None else None,
+        thinking_text=_thinking_text(response),
         raw_provider_response=response.raw_response if response is not None else None,
         metrics=asdict(response.metrics) if response is not None else {},
+        estimated_token_split=estimate_output_token_split(
+            thinking_text=_thinking_text(response),
+            response_text=response.response_text if response is not None else None,
+            output_tokens=response.metrics.output_tokens if response is not None else None,
+        ),
         evaluation={
             "status": evaluation.status,
             "score": evaluation.score,
@@ -156,3 +163,12 @@ def _evaluation_error(error_type: str, message: str) -> EvaluationResult:
 
 def _utc_timestamp() -> str:
     return datetime.now(UTC).isoformat()
+
+
+def _thinking_text(response: GenerateResponse | None) -> str | None:
+    if response is None:
+        return None
+    thinking = response.raw_response.get("thinking")
+    if isinstance(thinking, str):
+        return thinking
+    return None

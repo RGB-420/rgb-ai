@@ -13,16 +13,28 @@ except ImportError:  # pragma: no cover
 
 
 class FakeClient:
-    def __init__(self, response_text: str = "SI", error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        response_text: str = "SI",
+        error: Exception | None = None,
+        thinking_text: str | None = None,
+        output_tokens: int | None = 5,
+    ) -> None:
         self.response_text = response_text
         self.error = error
+        self.thinking_text = thinking_text
+        self.output_tokens = output_tokens
         self.calls = []
 
     def generate(self, **kwargs):
         self.calls.append(kwargs)
         if self.error is not None:
             raise self.error
-        return make_generate_response(self.response_text)
+        return make_generate_response(
+            self.response_text,
+            thinking_text=self.thinking_text,
+            output_tokens=self.output_tokens,
+        )
 
 
 def _model(**overrides) -> ModelRegistryEntry:
@@ -65,8 +77,11 @@ def test_run_benchmark_case_successful_exact_match(tmp_path) -> None:
     assert result.evaluation["status"] == "passed"
     assert result.run_id == "run_test"
     assert result.response_text == "SI"
+    assert result.thinking_text is None
     assert result.raw_provider_response == {"model": "qwen3:0.6b", "response": "SI", "done": True}
     assert result.metrics["total_duration_ms"] == 1000.0
+    assert result.metrics["output_tokens"] == 5
+    assert result.estimated_token_split["estimated_response_tokens"] == 5
     assert load_jsonl_results(tmp_path / "results.jsonl")[0]["result_id"] == result.result_id
     assert client.calls[0]["model"] == "qwen3:0.6b"
     assert client.calls[0]["prompt"] == "TASK:\nSay SI"
@@ -201,6 +216,36 @@ def test_run_benchmark_case_preserves_execution_context(tmp_path) -> None:
     assert client.calls[0]["system"] == "Use context."
     assert client.calls[0]["options"] == {"temperature": 0}
     assert "CONTEXT:" in client.calls[0]["prompt"]
+
+
+def test_run_benchmark_case_preserves_thinking_and_estimated_split(tmp_path) -> None:
+    case = parse_benchmark_case(
+        {"test_id": "OPEN_001", "category": "open", "prompt": "Explain"}
+    )
+
+    result = run_benchmark_case(
+        model=_model(),
+        case=case,
+        client=FakeClient(
+            response_text="Terrassa",
+            thinking_text="Estoy revisando Nébula Azul.",
+            output_tokens=20,
+        ),
+        result_store=_store(tmp_path),
+    )
+
+    assert result.thinking_text == "Estoy revisando Nébula Azul."
+    assert result.metrics["output_tokens"] == 20
+    assert result.estimated_token_split["method"] == "character_ratio_v1"
+    assert result.estimated_token_split["authoritative"] is False
+    assert result.estimated_token_split["thinking_characters"] == len(
+        "Estoy revisando Nébula Azul."
+    )
+    assert (
+        result.estimated_token_split["estimated_thinking_tokens"]
+        + result.estimated_token_split["estimated_response_tokens"]
+        == 20
+    )
 
 
 def test_run_benchmark_case_propagates_result_storage_failure(tmp_path) -> None:

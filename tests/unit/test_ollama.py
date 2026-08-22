@@ -27,8 +27,11 @@ def test_generate_posts_non_streaming_request_and_parses_metrics() -> None:
         assert request.method == "POST"
         assert request.url.path == "/api/generate"
         assert request.read()
-        payload = request.content.decode()
+        payload = request.content.decode("utf-8")
         assert '"stream":false' in payload.replace(" ", "")
+        assert "Nébula Azul" in payload
+        assert "¿Qué día tendrá la revisión final?" in payload
+        assert request.headers["content-type"] == "application/json; charset=utf-8"
         return httpx.Response(
             200,
             json={
@@ -45,7 +48,11 @@ def test_generate_posts_non_streaming_request_and_parses_metrics() -> None:
         )
 
     with _client(handler) as client:
-        result = client.generate(model="qwen3:0.6b", prompt="Responde SI")
+        result = client.generate(
+            model="qwen3:0.6b",
+            prompt="¿Qué día tendrá la revisión final?",
+            system="Nébula Azul",
+        )
 
     assert result.model == "qwen3:0.6b"
     assert result.response_text == "SI"
